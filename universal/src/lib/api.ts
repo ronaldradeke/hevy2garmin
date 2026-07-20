@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 /**
  * hevy2garmin universal data. The sync state lives in the soma DB
@@ -28,6 +28,7 @@ export interface HevyStatus {
 export function useHevyStatus() {
   const [data, setData] = useState<HevyStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
   useEffect(() => {
     let alive = true;
     fetch(`${API_BASE}/api/hevy/status`)
@@ -35,6 +36,21 @@ export function useHevyStatus() {
       .then((d: HevyStatus) => alive && (setData(d), setError(null)))
       .catch((e) => alive && setError(String(e.message ?? e)));
     return () => { alive = false; };
-  }, []);
-  return { data, error };
+  }, [reload]);
+  return { data, error, refetch: () => setReload((n) => n + 1) };
+}
+
+/**
+ * Pull-to-refresh helper: wraps refetch callbacks in a spinner-friendly
+ * `refreshing` flag that drops after a short beat so the control settles.
+ */
+export function usePullRefresh(...refetchers: Array<() => void>) {
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    refetchers.forEach((r) => r());
+    setTimeout(() => setRefreshing(false), 900);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, refetchers);
+  return { refreshing, onRefresh };
 }
